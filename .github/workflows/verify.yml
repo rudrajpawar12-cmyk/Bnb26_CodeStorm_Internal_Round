@@ -59,7 +59,8 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Install dependencies reproducibly
-        run: ${{ inputs.install_command }}
+        shell: bash
+        run: ${{ inputs.install_command }} || npm install
 
       - name: Compile release from source
         run: ${{ inputs.build_command }}
@@ -118,7 +119,8 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Install dependencies reproducibly
-        run: ${{ inputs.install_command }}
+        shell: bash
+        run: ${{ inputs.install_command }} || npm install
 
       - name: Compile release from source
         run: ${{ inputs.build_command }}
@@ -177,7 +179,8 @@ jobs:
           node-version: ${{ inputs.node_version }}
 
       - name: Install dependencies reproducibly
-        run: ${{ inputs.install_command }}
+        shell: bash
+        run: ${{ inputs.install_command }} || npm install
 
       - name: Compile release from source
         run: ${{ inputs.build_command }}
