@@ -60,22 +60,45 @@ jobs:
 
       - name: Install dependencies reproducibly
         shell: bash
-        run: ${{ inputs.install_command }} || npm install
+        run: |
+          CMD="${{ inputs.install_command }}"
+          if [ -n "$CMD" ] && [ "$CMD" != "None" ]; then
+            eval "$CMD"
+          fi
 
       - name: Compile release from source
-        run: ${{ inputs.build_command }}
+        shell: bash
+        run: |
+          CMD="${{ inputs.build_command }}"
+          if [ -n "$CMD" ] && [ "$CMD" != "None" ]; then
+            eval "$CMD"
+          fi
 
-      - name: Calculate canonical artifact fingerprint
+      - name: Calculate canonical artifact or source fingerprint
         id: hash
         shell: bash
         run: |
           TARGET="${{ inputs.artifact_path }}"
-          if [ ! -d "$TARGET" ] || [ -z "$(find "$TARGET" -type f 2>/dev/null)" ]; then
-            echo "BUILD FAILED: Target artifact directory '$TARGET' does not exist or contains no files after build!"
-            exit 1
+          if [ "$TARGET" = "N/A" ] || [ -z "$TARGET" ]; then
+            echo "SOURCE REPRODUCIBILITY MODE: Calculating canonical source tree manifest..."
+            find . -type f \
+              ! -path './.git/*' \
+              ! -path '*/__pycache__/*' \
+              ! -path '*/.venv/*' \
+              ! -path '*/venv/*' \
+              ! -path '*/env/*' \
+              ! -name '*.pyc' \
+              ! -name '*.pyo' \
+              ! -name '*.tmp' \
+              | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-a.txt
+          else
+            if [ ! -d "$TARGET" ] || [ -z "$(find "$TARGET" -type f 2>/dev/null)" ]; then
+              echo "BUILD FAILED: Target artifact directory '$TARGET' does not exist or contains no files after build!"
+              exit 1
+            fi
+            find "$TARGET" -type f | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-a.txt
           fi
 
-          find "$TARGET" -type f | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-a.txt
           HASH=$(sha256sum canonical-manifest-a.txt | awk '{print $1}')
           echo "BUILDER_A_HASH=$HASH"
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
@@ -120,22 +143,45 @@ jobs:
 
       - name: Install dependencies reproducibly
         shell: bash
-        run: ${{ inputs.install_command }} || npm install
+        run: |
+          CMD="${{ inputs.install_command }}"
+          if [ -n "$CMD" ] && [ "$CMD" != "None" ]; then
+            eval "$CMD"
+          fi
 
       - name: Compile release from source
-        run: ${{ inputs.build_command }}
+        shell: bash
+        run: |
+          CMD="${{ inputs.build_command }}"
+          if [ -n "$CMD" ] && [ "$CMD" != "None" ]; then
+            eval "$CMD"
+          fi
 
-      - name: Calculate canonical artifact fingerprint
+      - name: Calculate canonical artifact or source fingerprint
         id: hash
         shell: bash
         run: |
           TARGET="${{ inputs.artifact_path }}"
-          if [ ! -d "$TARGET" ] || [ -z "$(find "$TARGET" -type f 2>/dev/null)" ]; then
-            echo "BUILD FAILED: Target artifact directory '$TARGET' does not exist or contains no files after build!"
-            exit 1
+          if [ "$TARGET" = "N/A" ] || [ -z "$TARGET" ]; then
+            echo "SOURCE REPRODUCIBILITY MODE: Calculating canonical source tree manifest..."
+            find . -type f \
+              ! -path './.git/*' \
+              ! -path '*/__pycache__/*' \
+              ! -path '*/.venv/*' \
+              ! -path '*/venv/*' \
+              ! -path '*/env/*' \
+              ! -name '*.pyc' \
+              ! -name '*.pyo' \
+              ! -name '*.tmp' \
+              | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-b.txt
+          else
+            if [ ! -d "$TARGET" ] || [ -z "$(find "$TARGET" -type f 2>/dev/null)" ]; then
+              echo "BUILD FAILED: Target artifact directory '$TARGET' does not exist or contains no files after build!"
+              exit 1
+            fi
+            find "$TARGET" -type f | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-b.txt
           fi
 
-          find "$TARGET" -type f | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-b.txt
           HASH=$(sha256sum canonical-manifest-b.txt | awk '{print $1}')
           echo "BUILDER_B_HASH=$HASH"
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
@@ -180,36 +226,67 @@ jobs:
 
       - name: Install dependencies reproducibly
         shell: bash
-        run: ${{ inputs.install_command }} || npm install
+        run: |
+          CMD="${{ inputs.install_command }}"
+          if [ -n "$CMD" ] && [ "$CMD" != "None" ]; then
+            eval "$CMD"
+          fi
 
       - name: Compile release from source
-        run: ${{ inputs.build_command }}
+        shell: bash
+        run: |
+          CMD="${{ inputs.build_command }}"
+          if [ -n "$CMD" ] && [ "$CMD" != "None" ]; then
+            eval "$CMD"
+          fi
 
       - name: Simulate Builder Conflict (Demo Mode only)
         if: ${{ inputs.demo_conflict == 'true' }}
         shell: bash
         run: |
           TARGET="${{ inputs.artifact_path }}"
-          echo "DEMO CONFLICT: Intentionally injecting tamper signature into Builder C artifact..."
-          FIRST_FILE=$(find "$TARGET" -type f 2>/dev/null | head -n 1)
-          if [ -n "$FIRST_FILE" ]; then
-            echo "QUORUM DEMO TAMPER" >> "$FIRST_FILE"
-            echo "Tampered: $FIRST_FILE"
+          echo "DEMO CONFLICT: Intentionally injecting tamper signature into Builder C..."
+          if [ "$TARGET" = "N/A" ] || [ -z "$TARGET" ]; then
+            FIRST_FILE=$(find . -maxdepth 2 -type f ! -path './.git/*' ! -path '*/__pycache__/*' ! -name '*.pyc' 2>/dev/null | head -n 1)
+            if [ -n "$FIRST_FILE" ]; then
+              echo "QUORUM DEMO TAMPER" >> "$FIRST_FILE"
+              echo "Tampered source file: $FIRST_FILE"
+            fi
           else
-            echo "QUORUM DEMO TAMPER" > "$TARGET/tamper.sig"
+            FIRST_FILE=$(find "$TARGET" -type f 2>/dev/null | head -n 1)
+            if [ -n "$FIRST_FILE" ]; then
+              echo "QUORUM DEMO TAMPER" >> "$FIRST_FILE"
+              echo "Tampered artifact file: $FIRST_FILE"
+            else
+              echo "QUORUM DEMO TAMPER" > "$TARGET/tamper.sig"
+            fi
           fi
 
-      - name: Calculate canonical artifact fingerprint
+      - name: Calculate canonical artifact or source fingerprint
         id: hash
         shell: bash
         run: |
           TARGET="${{ inputs.artifact_path }}"
-          if [ ! -d "$TARGET" ] || [ -z "$(find "$TARGET" -type f 2>/dev/null)" ]; then
-            echo "BUILD FAILED: Target artifact directory '$TARGET' does not exist or contains no files after build!"
-            exit 1
+          if [ "$TARGET" = "N/A" ] || [ -z "$TARGET" ]; then
+            echo "SOURCE REPRODUCIBILITY MODE: Calculating canonical source tree manifest..."
+            find . -type f \
+              ! -path './.git/*' \
+              ! -path '*/__pycache__/*' \
+              ! -path '*/.venv/*' \
+              ! -path '*/venv/*' \
+              ! -path '*/env/*' \
+              ! -name '*.pyc' \
+              ! -name '*.pyo' \
+              ! -name '*.tmp' \
+              | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-c.txt
+          else
+            if [ ! -d "$TARGET" ] || [ -z "$(find "$TARGET" -type f 2>/dev/null)" ]; then
+              echo "BUILD FAILED: Target artifact directory '$TARGET' does not exist or contains no files after build!"
+              exit 1
+            fi
+            find "$TARGET" -type f | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-c.txt
           fi
 
-          find "$TARGET" -type f | LC_ALL=C sort | xargs -r sha256sum > canonical-manifest-c.txt
           HASH=$(sha256sum canonical-manifest-c.txt | awk '{print $1}')
           echo "BUILDER_C_HASH=$HASH"
           echo "hash=$HASH" >> "$GITHUB_OUTPUT"
