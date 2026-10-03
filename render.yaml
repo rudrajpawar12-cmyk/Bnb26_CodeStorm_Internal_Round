@@ -1,0 +1,21 @@
+services:
+  # Quorum Backend Express API Service
+  - type: web
+    name: quorum-backend
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GITHUB_OWNER
+        value: yashnanavare6
+      - key: GITHUB_REPO
+        value: Bit
+      - key: GITHUB_WORKFLOW
+        value: verify.yml
+      - key: GITHUB_TOKEN
+        sync: false # Set securely in Render dashboard
