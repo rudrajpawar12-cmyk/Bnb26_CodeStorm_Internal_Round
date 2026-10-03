@@ -1,0 +1,185 @@
+name: Quorum Verification
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "Repository to verify"
+        required: true
+        type: string
+
+      commit:
+        description: "Commit SHA to verify"
+        required: true
+        type: string
+
+jobs:
+
+  builder-a:
+    name: Builder A
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.commit }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+
+      - name: Calculate artifact hash
+        id: hash
+        shell: bash
+        run: |
+          tar -czf build-a.tar.gz dist
+          HASH=$(sha256sum build-a.tar.gz | awk '{print $1}')
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "Builder A hash: $HASH"
+
+      - name: Save Builder A result
+        run: |
+          echo "{\"builder\":\"A\",\"hash\":\"${{ steps.hash.outputs.hash }}\"}" > builder-a.json
+
+      - name: Upload Builder A result
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-a-result
+          path: builder-a.json
+
+
+  builder-b:
+    name: Builder B
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.commit }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+
+      - name: Calculate artifact hash
+        id: hash
+        shell: bash
+        run: |
+          tar -czf build-b.tar.gz dist
+          HASH=$(sha256sum build-b.tar.gz | awk '{print $1}')
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "Builder B hash: $HASH"
+
+      - name: Save Builder B result
+        run: |
+          echo "{\"builder\":\"B\",\"hash\":\"${{ steps.hash.outputs.hash }}\"}" > builder-b.json
+
+      - name: Upload Builder B result
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-b-result
+          path: builder-b.json
+
+
+  builder-c:
+    name: Builder C
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout target repository
+        uses: actions/checkout@v6
+        with:
+          repository: ${{ inputs.repository }}
+          ref: ${{ inputs.commit }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build project
+        run: npm run build
+
+      - name: Calculate artifact hash
+        id: hash
+        shell: bash
+        run: |
+          tar -czf build-c.tar.gz dist
+          HASH=$(sha256sum build-c.tar.gz | awk '{print $1}')
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+          echo "Builder C hash: $HASH"
+
+      - name: Save Builder C result
+        run: |
+          echo "{\"builder\":\"C\",\"hash\":\"${{ steps.hash.outputs.hash }}\"}" > builder-c.json
+
+      - name: Upload Builder C result
+        uses: actions/upload-artifact@v4
+        with:
+          name: builder-c-result
+          path: builder-c.json
+
+
+  quorum:
+    name: Quorum Result
+    runs-on: ubuntu-latest
+
+    needs:
+      - builder-a
+      - builder-b
+      - builder-c
+
+    steps:
+      - name: Download Builder A
+        uses: actions/download-artifact@v5
+        with:
+          name: builder-a-result
+
+      - name: Download Builder B
+        uses: actions/download-artifact@v5
+        with:
+          name: builder-b-result
+
+      - name: Download Builder C
+        uses: actions/download-artifact@v5
+        with:
+          name: builder-c-result
+
+      - name: Compare builder results
+        shell: bash
+        run: |
+          HASH_A=$(cat builder-a.json | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+          HASH_B=$(cat builder-b.json | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+          HASH_C=$(cat builder-c.json | python3 -c "import sys,json; print(json.load(sys.stdin)['hash'])")
+
+          echo "Builder A: $HASH_A"
+          echo "Builder B: $HASH_B"
+          echo "Builder C: $HASH_C"
+
+          if [ "$HASH_A" = "$HASH_B" ] && [ "$HASH_B" = "$HASH_C" ]; then
+            echo "🟢 QUORUM VERIFIED"
+          else
+            echo "⚠️ VERIFICATION CONFLICT"
+            exit 1
+          fi
