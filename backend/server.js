@@ -1,69 +1,62 @@
+/**
+ * Quorum Backend Server
+ * Express REST API powering multi-builder software release verification.
+ */
+
+require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
+const verificationRoutes = require("./routes/verification");
 
 const app = express();
 
+// Security and utility middleware
 app.use(cors());
 app.use(express.json());
 
+// Request logging in development
+app.use((req, res, next) => {
+  const timestamp = new Date().toISOString().split("T")[1].slice(0, 8);
+  console.log(`[${timestamp}] ${req.method} ${req.originalUrl}`);
+  next();
+});
+
+// Root Healthcheck & Information
 app.get("/", (req, res) => {
   res.json({
-    message: "Quorum Backend is running",
+    platform: "QUORUM",
+    tagline: "Don't Trust the Binary. Trust the Builders.",
+    status: "online",
+    version: "1.0.0",
+    docs: "/api/system-status",
   });
 });
 
-app.post("/api/verify", async (req, res) => {
-  try {
-    const { repository, commit } = req.body;
+// Mount Verification API Routes
+app.use("/api", verificationRoutes);
 
-    if (!repository || !commit) {
-      return res.status(400).json({
-        error: "Repository and commit are required",
-      });
-    }
-
-    console.log("Verification requested:");
-    console.log("Repository:", repository);
-    console.log("Commit:", commit);
-
-    // Builders will be connected here.
-    // For now we return demo data.
-
-    const result = {
-      repository,
-      commit,
-      builders: [
-        {
-          name: "Builder A",
-          status: "verified",
-          hash: "ABC123",
-        },
-        {
-          name: "Builder B",
-          status: "verified",
-          hash: "ABC123",
-        },
-        {
-          name: "Builder C",
-          status: "verified",
-          hash: "ABC123",
-        },
-      ],
-      result: "VERIFIED",
-    };
-
-    res.json(result);
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: "Verification failed",
-    });
-  }
+// 404 Handler
+app.use((req, res) => {
+  res.status(404).json({
+    error: `Endpoint '${req.originalUrl}' not found.`,
+  });
 });
 
-const PORT = 5000;
+// Global Error Handler
+app.use((err, req, res, next) => {
+  console.error("Unhandled Server Error:", err);
+  res.status(500).json({
+    error: "Internal server error occurred.",
+    message: err.message,
+  });
+});
+
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Quorum backend running on http://localhost:${PORT}`);
+  console.log(`\n==================================================`);
+  console.log(`  QUORUM Verification Engine Online`);
+  console.log(`  URL: http://localhost:${PORT}`);
+  console.log(`  Environment: ${process.env.NODE_ENV || "development"}`);
+  console.log(`==================================================\n`);
 });
